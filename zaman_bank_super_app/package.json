@@ -1,0 +1,16 @@
+{
+  "name": "zaman_bank_super_app",
+  "version": "1.0.0",
+  "description": "Zaman Bank Super App",
+  "scripts": {
+    "start": "flutter run -d chrome --web-port=8081",
+    "dev": "flutter run -d chrome --web-port=8081 --web-hostname=localhost"
+  },
+  "proxy": {
+    "/api": {
+      "target": "http://localhost:8080",
+      "changeOrigin": true,
+      "secure": false
+    }
+  }
+}
