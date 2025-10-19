@@ -149,4 +149,32 @@ class GoalService {
       throw Exception('Network error: ${e.toString()}');
     }
   }
+
+  static Future<void> addMoneyToGoal(String goalId, double amount) async {
+    try {
+      final headers = await _getHeaders();
+      final body = {
+        'amount': amount,
+      };
+
+      print('Adding $amount to goal $goalId');
+      print('Request body: $body');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/$goalId/add-money'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to add money to goal: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Error adding money to goal: $e');
+      throw Exception('Network error: ${e.toString()}');
+    }
+  }
 }

@@ -5,6 +5,8 @@ import '../widgets/loading_widget.dart';
 import '../utils/navigation_utils.dart';
 import '../services/transaction_service.dart';
 import '../services/auth_service.dart';
+import '../services/goal_service.dart';
+import '../models/goal.dart';
 
 class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
@@ -19,6 +21,8 @@ class _TransferScreenState extends State<TransferScreen> with AutomaticKeepAlive
   final TextEditingController _phoneNumberController = TextEditingController();
   bool _isLoading = false;
   double _currentBalance = 0.0;
+  List<Goal> _goals = [];
+  final Map<String, TextEditingController> _goalAmountControllers = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -27,6 +31,7 @@ class _TransferScreenState extends State<TransferScreen> with AutomaticKeepAlive
   void initState() {
     super.initState();
     _loadBalance();
+    _loadGoals();
   }
 
   Future<void> _loadBalance() async {
@@ -37,9 +42,31 @@ class _TransferScreenState extends State<TransferScreen> with AutomaticKeepAlive
       });
     } catch (e) {
       setState(() {
-        _currentBalance = 0.0; // Reset to 0 if API fails
+        _currentBalance = 0.0;
       });
       print('Error loading balance: $e');
+    }
+  }
+
+  Future<void> _loadGoals() async {
+    try {
+      final user = await AuthService.getCurrentUser();
+      print('Loading goals for user: ${user.id}');
+      final goals = await GoalService.getGoalsByUserId(user.id);
+      print('Loaded ${goals.length} goals');
+      setState(() {
+        _goals = goals;
+        for (final goal in goals) {
+          if (!_goalAmountControllers.containsKey(goal.id)) {
+            _goalAmountControllers[goal.id] = TextEditingController();
+          }
+        }
+      });
+    } catch (e) {
+      print('Error loading goals: $e');
+      setState(() {
+        _goals = [];
+      });
     }
   }
 
@@ -47,6 +74,9 @@ class _TransferScreenState extends State<TransferScreen> with AutomaticKeepAlive
   void dispose() {
     _amountController.dispose();
     _phoneNumberController.dispose();
+    for (final controller in _goalAmountControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -243,40 +273,113 @@ class _TransferScreenState extends State<TransferScreen> with AutomaticKeepAlive
               ),
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
             
-                // Transfer Button
-                SmoothButton(
-                  onPressed: _isLoading ? null : () {
-                    _showTransferConfirmation();
-                  },
-                  backgroundColor: AppColors.zamanPersianGreen,
-                  foregroundColor: AppColors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: _isLoading
-                        ? const LoadingWidget(
-                            size: 20,
-                            color: AppColors.white,
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.send, size: 20),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Перевести',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+            // Transfer Button
+            SmoothButton(
+              onPressed: _isLoading ? null : () {
+                _showTransferConfirmation();
+              },
+              backgroundColor: AppColors.zamanPersianGreen,
+              foregroundColor: AppColors.white,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: _isLoading
+                    ? const LoadingWidget(
+                        size: 20,
+                        color: AppColors.white,
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.send, size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Перевести',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                        ],
+                      ),
+              ),
+            ),
+            
+            const SizedBox(height: 32),
+            
+            // Goals Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Пополнить цель',
+                  style: TextStyle(
+                    color: AppColors.black,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                IconButton(
+                  onPressed: _loadGoals,
+                  icon: const Icon(
+                    Icons.refresh,
+                    color: AppColors.zamanPersianGreen,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: _goals.isEmpty 
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'У вас пока нет целей',
+                            style: TextStyle(
+                              color: AppColors.grey,
+                              fontSize: 16,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/goals');
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text('Создать цель'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.zamanPersianGreen,
+                              foregroundColor: AppColors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: _goals.map((goal) => _buildGoalTransferItem(goal)).toList(),
+                  ),
+            ),
           ],
         ),
       ),
@@ -479,6 +582,359 @@ class _TransferScreenState extends State<TransferScreen> with AutomaticKeepAlive
         _isLoading = false;
       });
     }
+  }
+
+  Widget _buildGoalTransferItem(Goal goal) {
+    final progress = goal.amountSaved / goal.amountTarget;
+    final remainingAmount = goal.amountTarget - goal.amountSaved;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.zamanCloud,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.zamanPersianGreen.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  goal.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.black,
+                  ),
+                ),
+              ),
+              Text(
+                '${(progress * 100).toStringAsFixed(1)}%',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.zamanPersianGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Осталось: ${remainingAmount.toStringAsFixed(0)} ₸',
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: AppColors.white,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              progress >= 1.0 ? AppColors.zamanPersianGreen : AppColors.teal,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _goalAmountControllers[goal.id],
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    color: AppColors.black,
+                    fontSize: 14,
+                  ),
+                  decoration: const InputDecoration(
+                    hintText: 'Сумма',
+                    hintStyle: TextStyle(
+                      color: AppColors.grey,
+                      fontSize: 14,
+                    ),
+                    prefixText: '₸ ',
+                    prefixStyle: TextStyle(
+                      color: AppColors.black,
+                      fontSize: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                      borderSide: BorderSide(color: AppColors.grey),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.zamanPersianGreen,
+                      AppColors.zamanPersianGreen.withOpacity(0.8),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: TextButton(
+                  onPressed: () => _transferToGoal(goal),
+                  child: const Text(
+                    'Пополнить',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                onPressed: () => _editGoal(goal),
+                icon: const Icon(
+                  Icons.edit,
+                  color: AppColors.zamanPersianGreen,
+                  size: 18,
+                ),
+              ),
+              IconButton(
+                onPressed: () => _deleteGoal(goal),
+                icon: const Icon(
+                  Icons.delete,
+                  color: Colors.red,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _transferToGoal(Goal goal) async {
+    final controller = _goalAmountControllers[goal.id];
+    if (controller == null) return;
+    
+    final amountText = controller.text;
+    if (amountText.isEmpty) {
+      _showSnackBar('Введите сумму для пополнения цели', isError: true);
+      return;
+    }
+    
+    final amount = double.tryParse(amountText);
+    if (amount == null || amount <= 0) {
+      _showSnackBar('Введите корректную сумму', isError: true);
+      return;
+    }
+    
+    if (amount > _currentBalance) {
+      _showSnackBar('Недостаточно средств на счете', isError: true);
+      return;
+    }
+    
+    final remainingAmount = goal.amountTarget - goal.amountSaved;
+    if (amount > remainingAmount) {
+      _showSnackBar('Сумма превышает оставшуюся сумму цели', isError: true);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Add money to goal (this will also update user balance)
+      await GoalService.addMoneyToGoal(goal.id, amount);
+      
+      // Update local balance immediately
+      setState(() {
+        _currentBalance -= amount;
+      });
+      
+      _showSnackBar('Цель успешно пополнена!', isError: false);
+      controller.clear();
+      
+      // Reload data from server
+      await _loadBalance();
+      await _loadGoals();
+    } catch (e) {
+      _showSnackBar('Ошибка при пополнении цели: ${e.toString()}', isError: true);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _editGoal(Goal goal) {
+    final TextEditingController titleController = TextEditingController(text: goal.title);
+    DateTime selectedDate = goal.deadlineDate;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Редактировать цель',
+          style: TextStyle(
+            color: AppColors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Название цели',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () async {
+                final DateTime? picked = await showDatePicker(
+                  context: context,
+                  initialDate: selectedDate,
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 3650)),
+                );
+                if (picked != null) {
+                  selectedDate = picked;
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: AppColors.grey),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${selectedDate.day}.${selectedDate.month}.${selectedDate.year}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Отмена',
+              style: TextStyle(color: AppColors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (titleController.text.trim().isEmpty) {
+                _showSnackBar('Введите название цели', isError: true);
+                return;
+              }
+              
+              try {
+                await GoalService.updateGoal(
+                  goalId: goal.id,
+                  title: titleController.text.trim(),
+                  amountTarget: goal.amountTarget,
+                  deadlineDate: selectedDate,
+                );
+                
+                Navigator.of(context).pop();
+                _loadGoals();
+                
+                _showSnackBar('Цель успешно обновлена!', isError: false);
+              } catch (e) {
+                _showSnackBar('Ошибка при обновлении цели: ${e.toString()}', isError: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.zamanPersianGreen,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteGoal(Goal goal) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Удалить цель',
+          style: TextStyle(
+            color: AppColors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Вы уверены, что хотите удалить цель "${goal.title}"? Это действие нельзя отменить.',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(
+              'Отмена',
+              style: TextStyle(color: AppColors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await GoalService.deleteGoal(goal.id);
+                
+                Navigator.of(context).pop();
+                _loadGoals();
+                
+                _showSnackBar('Цель успешно удалена!', isError: false);
+              } catch (e) {
+                _showSnackBar('Ошибка при удалении цели: ${e.toString()}', isError: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnackBar(String message, {required bool isError}) {

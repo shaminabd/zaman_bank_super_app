@@ -4,6 +4,9 @@ import '../constants/app_constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/bottom_navigation.dart';
 import '../utils/navigation_utils.dart';
+import '../services/auth_service.dart';
+import '../services/transaction_service.dart';
+import '../services/goal_service.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -15,6 +18,36 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _selectedIndex = 3;
+  double _balance = 0.0;
+  int _transactionCount = 0;
+  int _goalsCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = await AuthService.getCurrentUser();
+      final transactions = await TransactionService.getTransactionsByUserId(user.id);
+      final goals = await GoalService.getGoalsByUserId(user.id);
+      
+      setState(() {
+        _balance = user.balance;
+        _transactionCount = transactions.length;
+        _goalsCount = goals.length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('Error loading user data: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +71,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.black),
+            onPressed: () {
+              _loadUserData();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined, color: AppColors.black),
             onPressed: () {
               _showSettingsDialog();
@@ -45,267 +84,267 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Profile Header Card
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.zamanPersianGreen,
-                    AppColors.zamanPersianGreen.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.zamanPersianGreen.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Profile Avatar
+                  // Main Profile Card
                   Container(
-                    width: 80,
-                    height: 80,
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.white,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.zamanPersianGreen,
+                          AppColors.zamanPersianGreen.withOpacity(0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          color: AppColors.zamanPersianGreen.withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 40,
-                      color: AppColors.zamanPersianGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // User Name
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, child) {
-                      return Text(
-                        authProvider.user != null 
-                            ? '${authProvider.user!.firstName} ${authProvider.user!.lastName}'
-                            : 'Ахмед Касымов',
-                        style: const TextStyle(
-                          color: AppColors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  
-                  // User ID
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, child) {
-                      return Text(
-                        authProvider.user != null 
-                            ? 'ID: ${authProvider.user!.iin}'
-                            : 'ID: 123456789',
-                        style: TextStyle(
-                          color: AppColors.white.withOpacity(0.8),
-                          fontSize: 14,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  // Account Status
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Column(
                       children: [
+                        // Profile Avatar
                         Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.zamanSolar,
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
+                            color: AppColors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            size: 40,
+                            color: AppColors.zamanPersianGreen,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Активный аккаунт',
-                          style: TextStyle(
-                            color: AppColors.white.withOpacity(0.9),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(height: 16),
+                        
+                        // User Name
+                        Consumer<AuthProvider>(
+                          builder: (context, authProvider, child) {
+                            return Text(
+                              authProvider.user != null 
+                                  ? '${authProvider.user!.firstName} ${authProvider.user!.lastName}'
+                                  : 'Пользователь',
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        
+                        // User IIN
+                        Consumer<AuthProvider>(
+                          builder: (context, authProvider, child) {
+                            return Text(
+                              authProvider.user != null 
+                                  ? 'ИИН: ${authProvider.user!.iin}'
+                                  : 'ИИН: Не указан',
+                              style: TextStyle(
+                                color: AppColors.white.withOpacity(0.8),
+                                fontSize: 14,
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        
+                        // Phone Number
+                        Consumer<AuthProvider>(
+                          builder: (context, authProvider, child) {
+                            return Text(
+                              authProvider.user != null 
+                                  ? '${authProvider.user!.phoneNumber}'
+                                  : '+7 777 000 0000',
+                              style: TextStyle(
+                                color: AppColors.white.withOpacity(0.8),
+                                fontSize: 14,
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Account Status
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.zamanSolar,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Активный аккаунт',
+                                style: TextStyle(
+                                  color: AppColors.white.withOpacity(0.9),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Stats Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatItem(
+                                title: 'Баланс',
+                                value: '₸${_balance.toStringAsFixed(0)}',
+                                icon: Icons.account_balance_wallet_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildStatItem(
+                                title: 'Транзакции',
+                                value: '$_transactionCount',
+                                icon: Icons.swap_horiz_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildStatItem(
+                                title: 'Цели',
+                                value: '$_goalsCount',
+                                icon: Icons.flag_outlined,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildActionButton(
+                                title: 'Изменить',
+                                icon: Icons.edit_outlined,
+                                onTap: () => _showEditProfileDialog(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildActionButton(
+                                title: 'Настройки',
+                                icon: Icons.settings_outlined,
+                                onTap: () => _showSettingsDialog(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildActionButton(
+                                title: 'Выйти',
+                                icon: Icons.logout,
+                                onTap: () => _showLogoutDialog(),
+                                isDestructive: true,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Quick Actions
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Быстрые действия',
+                          style: TextStyle(
+                            color: AppColors.black,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildQuickAction(
+                                title: 'История операций',
+                                icon: Icons.history_outlined,
+                                onTap: () => _showTransactionHistoryDialog(),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildQuickAction(
+                                title: 'Мои цели',
+                                icon: Icons.flag_outlined,
+                                onTap: () => _showGoalsDialog(),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildQuickAction(
+                                title: 'Поддержка',
+                                icon: Icons.help_outline,
+                                onTap: () => _showContactSupportDialog(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 100), // Space for bottom navigation
                 ],
               ),
             ),
-
-            // Quick Stats
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Баланс',
-                      value: '₸125,000',
-                      icon: Icons.account_balance_wallet_outlined,
-                      color: AppColors.zamanPersianGreen,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Карты',
-                      value: '2',
-                      icon: Icons.credit_card_outlined,
-                      color: AppColors.zamanSolar,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Переводы',
-                      value: '15',
-                      icon: Icons.swap_horiz_outlined,
-                      color: AppColors.zamanPersianGreen,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Menu Sections
-            _buildMenuSection(
-              title: 'Личные данные',
-              items: [
-                _buildMenuItem(
-                  icon: Icons.person_outline,
-                  title: 'Редактировать профиль',
-                  subtitle: 'Имя, фамилия, контакты',
-                  onTap: () => _showEditProfileDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.email_outlined,
-                  title: 'Email',
-                  subtitle: 'ahmed.kasymov@email.com',
-                  onTap: () => _showContactDialog('Email'),
-                ),
-                _buildMenuItem(
-                  icon: Icons.phone_outlined,
-                  title: 'Телефон',
-                  subtitle: '+7 777 123 4567',
-                  onTap: () => _showContactDialog('Phone'),
-                ),
-              ],
-            ),
-
-            _buildMenuSection(
-              title: 'Безопасность',
-              items: [
-                _buildMenuItem(
-                  icon: Icons.lock_outline,
-                  title: 'Изменить пароль',
-                  subtitle: 'Обновить пароль для безопасности',
-                  onTap: () => _showChangePasswordDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.fingerprint_outlined,
-                  title: 'Биометрия',
-                  subtitle: 'Вход по отпечатку пальца',
-                  onTap: () => _showBiometryDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.security_outlined,
-                  title: 'Двухфакторная аутентификация',
-                  subtitle: 'Дополнительная защита',
-                  onTap: () => _showTwoFactorDialog(),
-                ),
-              ],
-            ),
-
-            _buildMenuSection(
-              title: 'Банковские услуги',
-              items: [
-                _buildMenuItem(
-                  icon: Icons.account_balance_outlined,
-                  title: 'Банковские реквизиты',
-                  subtitle: 'Просмотр и управление',
-                  onTap: () => _showBankDetailsDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.credit_card_outlined,
-                  title: 'Управление картами',
-                  subtitle: 'Блокировка, замена карт',
-                  onTap: () => _showCardManagementDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.history_outlined,
-                  title: 'История операций',
-                  subtitle: 'Все транзакции',
-                  onTap: () => _showTransactionHistoryDialog(),
-                ),
-              ],
-            ),
-
-            _buildMenuSection(
-              title: 'Поддержка',
-              items: [
-                _buildMenuItem(
-                  icon: Icons.help_outline,
-                  title: 'Справочный центр',
-                  subtitle: 'FAQ и инструкции',
-                  onTap: () => _showHelpDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.chat_bubble_outline,
-                  title: 'Связаться с поддержкой',
-                  subtitle: 'Чат с оператором',
-                  onTap: () => _showContactSupportDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.info_outline,
-                  title: 'О приложении',
-                  subtitle: 'Версия 1.0.0',
-                  onTap: () => _showAboutDialog(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.logout,
-                  title: 'Выйти',
-                  subtitle: 'Выйти из аккаунта',
-                  onTap: () => _showLogoutDialog(),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 100), // Space for bottom navigation
-          ],
-        ),
-      ),
       bottomNavigationBar: BottomNavigation(
         selectedIndex: _selectedIndex,
         onItemTapped: (index) {
@@ -318,145 +357,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildStatItem({
     required String title,
     required String value,
     required IconData icon,
-    required Color color,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: AppColors.white,
+          size: 24,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.black,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: TextStyle(
+            color: AppColors.white.withOpacity(0.8),
+            fontSize: 12,
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              color: AppColors.grey.withOpacity(0.7),
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildMenuSection({
+  Widget _buildActionButton({
     required String title,
-    required List<Widget> items,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(children: items),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuItem({
     required IconData icon,
-    required String title,
-    required String subtitle,
     required VoidCallback onTap,
+    bool isDestructive = false,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: isDestructive ? Colors.red : AppColors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(18),
+        border: isDestructive ? null : Border.all(color: AppColors.white.withOpacity(0.3)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.zamanPersianGreen.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.zamanPersianGreen,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: AppColors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: AppColors.grey.withOpacity(0.7),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               Icon(
-                Icons.arrow_forward_ios,
-                color: AppColors.grey.withOpacity(0.5),
-                size: 16,
+                icon,
+                color: isDestructive ? AppColors.white : AppColors.white,
+                size: 14,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: isDestructive ? AppColors.white : AppColors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -464,6 +434,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildQuickAction({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        color: AppColors.zamanCloud,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.zamanPersianGreen.withOpacity(0.2)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: AppColors.zamanPersianGreen,
+                size: 20,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.black,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   // Simplified dialog methods
   void _showSettingsDialog() {
@@ -474,44 +487,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _showSimpleDialog('Редактировать профиль', 'Функция редактирования профиля будет реализована здесь.');
   }
 
-  void _showContactDialog(String type) {
-    _showSimpleDialog('Обновить $type', 'Функция обновления $type будет реализована здесь.');
-  }
-
-  void _showChangePasswordDialog() {
-    _showSimpleDialog('Изменить пароль', 'Функция изменения пароля будет реализована здесь.');
-  }
-
-  void _showBiometryDialog() {
-    _showSimpleDialog('Биометрия', 'Настройки биометрической аутентификации будут реализованы здесь.');
-  }
-
-  void _showTwoFactorDialog() {
-    _showSimpleDialog('Двухфакторная аутентификация', 'Настройки двухфакторной аутентификации будут реализованы здесь.');
-  }
-
-  void _showBankDetailsDialog() {
-    _showSimpleDialog('Банковские реквизиты', 'Информация о банковских реквизитах будет отображена здесь.');
-  }
-
-  void _showCardManagementDialog() {
-    _showSimpleDialog('Управление картами', 'Функция управления картами будет реализована здесь.');
+  void _showGoalsDialog() {
+    _showSimpleDialog('Мои цели', 'У вас $_goalsCount активных целей. Перейдите в раздел "Цели" для управления.');
   }
 
   void _showTransactionHistoryDialog() {
-    _showSimpleDialog('История операций', 'История всех транзакций будет отображена здесь.');
-  }
-
-  void _showHelpDialog() {
-    _showSimpleDialog('Справочный центр', 'FAQ и справочные материалы будут реализованы здесь.');
+    _showSimpleDialog('История операций', 'У вас $_transactionCount транзакций. Перейдите в раздел "История" для просмотра.');
   }
 
   void _showContactSupportDialog() {
     _showSimpleDialog('Связаться с поддержкой', 'Функция связи с поддержкой будет реализована здесь.');
-  }
-
-  void _showAboutDialog() {
-    _showSimpleDialog('О приложении', 'Zaman Bank - Исламские банковские решения\nВерсия 1.0.0');
   }
 
   void _showLogoutDialog() {

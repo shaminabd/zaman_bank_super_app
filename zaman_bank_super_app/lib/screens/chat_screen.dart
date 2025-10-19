@@ -868,11 +868,13 @@ class _ChatScreenState extends State<ChatScreen> {
       // Extract the goal description after "goal:"
       final goalDescription = message.substring(5).trim();
       
-      // Send a specific prompt to GPT to parse the goal information
-      final prompt = "Пользователь хочет создать цель: '$goalDescription'. Пожалуйста, извлеки информацию и ответь в следующем формате:\n\nTITLE: [что покупаем/на что копим]\nAMOUNT: [сумма в тенге, только число]\nDEADLINE: [дата в формате YYYY-MM-DD, например 2027-12-31 для 'через 3 года' или 'к концу 2027 года']\n\nЕсли какой-то информации не хватает, напиши 'НЕ УКАЗАНО' вместо этого поля. Для срока конвертируй 'через 3 года' в дату через 3 года от сегодня, 'через 6 месяцев' в дату через 6 месяцев от сегодня.";
+      // Send a flexible prompt to GPT to parse the goal information
+      final prompt = "Извлеки информацию о цели из текста: '$goalDescription'\n\nОтветь ТОЛЬКО в формате:\nTITLE: [название цели]\nAMOUNT: [сумма в тенге, только число]\nDEADLINE: [дата в формате YYYY-MM-DD]\n\nПравила:\n- TITLE: извлеки что покупаем/на что копим (кратко, 1-2 слова)\n- AMOUNT: найди любые упоминания денег и конвертируй в тенге\n  * 'млн', 'миллион' = ×1,000,000\n  * 'тыс', 'тысяч' = ×1,000\n  * 'к' = ×1,000\n  * если только число без единиц, используй как есть\n- DEADLINE: найди любые упоминания времени и конвертируй в дату\n  * 'года', 'лет', 'год' = добавить лет к сегодня\n  * 'месяца', 'месяцев', 'месяц' = добавить месяцев к сегодня\n  * 'дня', 'дней', 'день' = добавить дней к сегодня\n  * если дата указана явно, используй её\n\nЕсли что-то не найдено:\n- TITLE: 'Новая цель'\n- AMOUNT: 50000\n- DEADLINE: через 1 год от сегодня (${DateTime.now().add(const Duration(days: 365)).toIso8601String().split('T')[0]})\n\nПримеры:\n'хочу купить машину за 40 млн через 4 года' → TITLE: машина, AMOUNT: 40000000, DEADLINE: 2028-10-19\n'коплю на квартиру 15 млн на 2 года' → TITLE: квартира, AMOUNT: 15000000, DEADLINE: 2026-10-19\n'нужно 500 тысяч на учебу через полгода' → TITLE: учеба, AMOUNT: 500000, DEADLINE: 2025-04-19";
       
       final response = await ChatService.sendMessage(message: prompt);
       final responseText = response.response;
+      
+      print('GPT Response for goal creation: $responseText');
       
       // Parse the response
       final lines = responseText.split('\n');
@@ -885,18 +887,151 @@ class _ChatScreenState extends State<ChatScreen> {
           title = line.substring(6).trim();
         } else if (line.startsWith('AMOUNT:')) {
           final amountStr = line.substring(7).trim();
-          if (amountStr != 'НЕ УКАЗАНО') {
-            amount = double.tryParse(amountStr);
-          }
+          amount = double.tryParse(amountStr);
         } else if (line.startsWith('DEADLINE:')) {
           deadlineText = line.substring(9).trim();
         }
       }
       
-      // Use defaults for missing information
-      final finalTitle = title ?? 'Новая цель';
-      final finalAmount = amount ?? 1000000.0;
-      final finalDeadlineText = deadlineText ?? 'через 1 год';
+      // Fallback parsing if AI didn't follow the format exactly
+      if (title == null || amount == null || deadlineText == null) {
+        print('AI response did not follow expected format, attempting fallback parsing...');
+        
+        // Try to extract information from the original goal description
+        final lowerDescription = goalDescription.toLowerCase();
+        
+        // Extract title (look for common patterns)
+        if (title == null) {
+          // More flexible title extraction
+          if (lowerDescription.contains('машину') || lowerDescription.contains('автомобиль') || lowerDescription.contains('машина')) {
+            title = 'машина';
+          } else if (lowerDescription.contains('квартиру') || lowerDescription.contains('дом') || lowerDescription.contains('квартира')) {
+            title = 'квартира';
+          } else if (lowerDescription.contains('образование') || lowerDescription.contains('учебу') || lowerDescription.contains('учеба')) {
+            title = 'образование';
+          } else if (lowerDescription.contains('путешествие') || lowerDescription.contains('отпуск')) {
+            title = 'путешествие';
+          } else if (lowerDescription.contains('свадьбу') || lowerDescription.contains('свадьба')) {
+            title = 'свадьба';
+          } else if (lowerDescription.contains('ремонт')) {
+            title = 'ремонт';
+          } else if (lowerDescription.contains('бизнес') || lowerDescription.contains('стартап')) {
+            title = 'бизнес';
+          } else {
+            // Try to extract any noun after common verbs
+            final titleRegex = RegExp(r'(хочу|нужно|коплю|накопить|купить|приобрести)\s+([а-яё]+)', caseSensitive: false);
+            final titleMatch = titleRegex.firstMatch(lowerDescription);
+            if (titleMatch != null) {
+              title = titleMatch.group(2) ?? 'Новая цель';
+            } else {
+              title = 'Новая цель';
+            }
+          }
+        }
+        
+        // Extract amount (look for numbers with various units)
+        if (amount == null) {
+          // Try different patterns for amount extraction
+          final patterns = [
+            // Millions
+            RegExp(r'(\d+(?:\.\d+)?)\s*(млн|миллион|млн\.|млн\s)', caseSensitive: false),
+            // Thousands
+            RegExp(r'(\d+(?:\.\d+)?)\s*(тыс|тысяч|тыс\.|тыс\s|к)', caseSensitive: false),
+            // Billions
+            RegExp(r'(\d+(?:\.\d+)?)\s*(млрд|миллиард|млрд\.|млрд\s)', caseSensitive: false),
+            // Simple numbers
+            RegExp(r'(\d+(?:\.\d+)?)', caseSensitive: false),
+          ];
+          
+          for (final pattern in patterns) {
+            final match = pattern.firstMatch(lowerDescription);
+            if (match != null) {
+              final number = double.tryParse(match.group(1) ?? '');
+              final unit = match.group(2)?.toLowerCase() ?? '';
+              
+              if (number != null) {
+                if (unit.contains('млрд') || unit.contains('миллиард')) {
+                  amount = number * 1000000000;
+                } else if (unit.contains('млн') || unit.contains('миллион')) {
+                  amount = number * 1000000;
+                } else if (unit.contains('тыс') || unit.contains('тысяч') || unit.contains('к')) {
+                  amount = number * 1000;
+                } else {
+                  amount = number;
+                }
+                break; // Found a match, stop looking
+              }
+            }
+          }
+        }
+        
+        // Extract deadline (look for various time expressions)
+        if (deadlineText == null) {
+          final timePatterns = [
+            // Years
+            RegExp(r'(\d+)\s*(года|лет|год|г\.)', caseSensitive: false),
+            // Months
+            RegExp(r'(\d+)\s*(месяца|месяцев|месяц|мес\.)', caseSensitive: false),
+            // Days
+            RegExp(r'(\d+)\s*(дня|дней|день|дн\.)', caseSensitive: false),
+            // Weeks
+            RegExp(r'(\d+)\s*(недели|недель|неделя|нед\.)', caseSensitive: false),
+            // Half year
+            RegExp(r'полгода|пол года', caseSensitive: false),
+            // Quarter
+            RegExp(r'квартал', caseSensitive: false),
+          ];
+          
+          for (final pattern in timePatterns) {
+            final match = pattern.firstMatch(lowerDescription);
+            if (match != null) {
+              if (pattern.pattern.contains('полгода')) {
+                final deadline = DateTime.now().add(const Duration(days: 182));
+                deadlineText = deadline.toIso8601String().split('T')[0];
+                break;
+              } else if (pattern.pattern.contains('квартал')) {
+                final deadline = DateTime.now().add(const Duration(days: 91));
+                deadlineText = deadline.toIso8601String().split('T')[0];
+                break;
+              } else {
+                final number = int.tryParse(match.group(1) ?? '');
+                if (number != null) {
+                  DateTime deadline;
+                  if (pattern.pattern.contains('года|лет|год')) {
+                    deadline = DateTime.now().add(Duration(days: number * 365));
+                  } else if (pattern.pattern.contains('месяца|месяцев|месяц')) {
+                    deadline = DateTime.now().add(Duration(days: number * 30));
+                  } else if (pattern.pattern.contains('недели|недель|неделя')) {
+                    deadline = DateTime.now().add(Duration(days: number * 7));
+                  } else if (pattern.pattern.contains('дня|дней|день')) {
+                    deadline = DateTime.now().add(Duration(days: number));
+                  } else {
+                    continue;
+                  }
+                  deadlineText = deadline.toIso8601String().split('T')[0];
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        print('Fallback parsing results - Title: $title, Amount: $amount, Deadline: $deadlineText');
+      }
+      
+      print('Parsed - Title: $title, Amount: $amount, Deadline: $deadlineText');
+      
+      // Use defaults for missing information and validate
+      final finalTitle = title.isNotEmpty ? title : 'Новая цель';
+      final finalAmount = (amount != null && amount > 0) ? amount : 50000.0;
+      final finalDeadlineText = (deadlineText != null && deadlineText.isNotEmpty) ? deadlineText : DateTime.now().add(const Duration(days: 365)).toIso8601String().split('T')[0];
+      
+      print('Final values - Title: $finalTitle, Amount: $finalAmount, Deadline: $finalDeadlineText');
+      
+      // Additional validation
+      if (finalAmount <= 0) {
+        throw Exception('Некорректная сумма цели: $finalAmount');
+      }
       
       // Parse deadline - expect YYYY-MM-DD format from GPT
       DateTime deadline;
